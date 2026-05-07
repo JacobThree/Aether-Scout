@@ -9,6 +9,7 @@ from . import __version__
 from .config import settings_from_env
 from .discovery import discover_assets_with_audit
 from .link_client import LinkClient
+from .request_shapes import import_request_shapes
 from .scope_loader import load_scope_file, scope_from_link_current
 from .surface_mapper import map_surfaces
 
@@ -41,6 +42,16 @@ def build_parser() -> argparse.ArgumentParser:
     push_surfaces = sub.add_parser("push-surfaces")
     push_surfaces.add_argument("--surfaces", required=True)
     push_surfaces.add_argument("--link-url", required=True)
+
+    import_shapes = sub.add_parser("import-request-shapes")
+    import_shapes.add_argument("--input", required=True)
+    import_shapes.add_argument("--scope", required=True)
+    import_shapes.add_argument("--out", required=True)
+    import_shapes.add_argument("--audit-log")
+
+    push_schemas = sub.add_parser("push-schemas")
+    push_schemas.add_argument("--schemas", required=True)
+    push_schemas.add_argument("--link-url", required=True)
     return parser
 
 
@@ -66,6 +77,14 @@ def main(argv: list[str] | None = None) -> int:
             responses = client.post_surfaces(surfaces)
             print(f"posted={len(responses)} link_url={args.link_url}")
             return 0
+        if args.command == "push-schemas":
+            client = LinkClient(args.link_url, settings.api_token, timeout=settings.timeout_seconds, batch_size=settings.link_batch_size)
+            schemas = _read_jsonl(args.schemas)
+            responses = client.post_schemas(schemas)
+            print(f"posted={len(responses)} link_url={args.link_url}")
+            return 0
+        if args.command == "import-request-shapes":
+            return _import_request_shapes(args)
         if args.command == "map-surfaces":
             return _map_surfaces(args, settings)
         if args.command == "run":
@@ -117,6 +136,18 @@ def _map_surfaces(args: argparse.Namespace, settings) -> int:
     for line in logs:
         print(f"log={line}", file=sys.stderr)
     print(f"program_id={scope.program_id} surfaces={len(surfaces)} rejected={len(rejected)} out={out_path}")
+    return 0
+
+
+def _import_request_shapes(args: argparse.Namespace) -> int:
+    scope = load_scope_file(args.scope)
+    records = json.loads(Path(args.input).read_text(encoding="utf-8"))
+    schemas, rejected = import_request_shapes(records, scope)
+    out_path = Path(args.out)
+    _write_jsonl(out_path, [schema.to_dict() for schema in schemas])
+    if args.audit_log:
+        _write_jsonl(Path(args.audit_log), [record.to_dict() for record in rejected])
+    print(f"program_id={scope.program_id} schemas={len(schemas)} rejected={len(rejected)} out={out_path}")
     return 0
 
 
