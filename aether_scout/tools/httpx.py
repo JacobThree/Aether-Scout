@@ -18,8 +18,6 @@ def probe(
         return [], logs
     if not tool_available(httpx_path):
         return _fallback_urls(hosts), [f"httpx unavailable: {httpx_path}; emitted conservative https candidates"]
-    if rate_limiter is not None:
-        rate_limiter.wait()
     cmd = [
         httpx_path,
         "-silent",
@@ -33,15 +31,21 @@ def probe(
         "-threads",
         str(max(1, max_concurrent_probes)),
     ]
-    result = run_cmd(cmd, input_text="\n".join(hosts) + "\n", timeout=timeout)
-    logs.append(f"httpx exit={result.exit_code}")
-    if result.exit_code != 0:
-        return [], logs
-    rows = [_row_from_json(item) for item in iter_json_lines(result.stdout)]
-    rows = [row for row in rows if row.get("url")]
-    if rows:
-        return rows, logs
-    return [{"url": url, "host": urlparse(url).hostname, "scheme": urlparse(url).scheme} for url in parse_urls(result.stdout)], logs
+    rows: list[dict] = []
+    for host in hosts:
+        if rate_limiter is not None:
+            rate_limiter.wait()
+        result = run_cmd(cmd, input_text=f"{host}\n", timeout=timeout)
+        logs.append(f"httpx host={host} exit={result.exit_code}")
+        if result.exit_code != 0:
+            continue
+        parsed_rows = [_row_from_json(item) for item in iter_json_lines(result.stdout)]
+        parsed_rows = [row for row in parsed_rows if row.get("url")]
+        if parsed_rows:
+            rows.extend(parsed_rows)
+            continue
+        rows.extend({"url": url, "host": urlparse(url).hostname, "scheme": urlparse(url).scheme} for url in parse_urls(result.stdout))
+    return rows, logs
 
 
 def _row_from_json(item: dict) -> dict:

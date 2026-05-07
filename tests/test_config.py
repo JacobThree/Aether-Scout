@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from aether_scout.config import ScoutSettings, settings_from_env
-from aether_scout.discovery import discover_assets
+from aether_scout.discovery import discover_assets, discover_assets_with_audit
 from aether_scout.models.scope import ScopeConfig, ScopeRule
 
 
@@ -73,6 +73,31 @@ class ConfigTests(unittest.TestCase):
         subfinder.assert_not_called()
         dns.assert_not_called()
         httpx_probe.assert_not_called()
+
+    @patch("aether_scout.discovery.httpx.probe", return_value=([], []))
+    @patch("aether_scout.discovery.dnsx.resolve")
+    @patch("aether_scout.discovery.subfinder.discover", return_value=(["admin.example.com", "api.example.com"], []))
+    def test_scope_filtered_candidates_are_audited(self, _subfinder, dns, _httpx_probe):
+        dns.return_value = ({"api.example.com": {"ips": []}}, [])
+        scope = ScopeConfig(
+            program_id="p1",
+            rules=[ScopeRule("*.example.com", "include"), ScopeRule("admin.example.com", "exclude")],
+        )
+        _assets, _logs, rejected = discover_assets_with_audit(scope, ScoutSettings())
+        self.assertIn(("admin.example.com", "host_out_of_scope"), [(row.candidate, row.reason) for row in rejected])
+
+    @patch("aether_scout.discovery.httpx.probe", return_value=([], []))
+    @patch("aether_scout.discovery.dnsx.resolve")
+    @patch("aether_scout.discovery.subfinder.discover", return_value=([], []))
+    def test_cidr_rejected_hosts_are_not_http_probed(self, _subfinder, dns, httpx_probe):
+        dns.return_value = ({"example.com": {"ips": ["198.51.100.10"]}}, [])
+        scope = ScopeConfig(
+            program_id="p1",
+            rules=[ScopeRule("example.com", "include"), ScopeRule("203.0.113.0/24", "include")],
+        )
+        _assets, _logs, rejected = discover_assets_with_audit(scope, ScoutSettings())
+        self.assertEqual(httpx_probe.call_args.args[0], [])
+        self.assertIn(("example.com", "resolved_ip_out_of_scope"), [(row.candidate, row.reason) for row in rejected])
 
 
 if __name__ == "__main__":

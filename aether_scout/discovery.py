@@ -33,11 +33,16 @@ def discover_assets_with_audit(scope: ScopeConfig, settings: ScoutSettings) -> t
         logs.extend(sub_logs)
         candidate_hosts.extend(discovered)
 
-    candidate_hosts = _allowed_hosts(candidate_hosts, scope)
+    candidate_hosts, scope_rejected = _filter_allowed_hosts(candidate_hosts, scope)
+    rejected.extend(
+        rejected_candidate(host, "scope_filter", "host_out_of_scope", scope_context={"program_id": scope.program_id})
+        for host in scope_rejected
+    )
     dns_results, dns_logs = dnsx.resolve(candidate_hosts, dnsx_path=settings.dnsx_path, timeout=settings.timeout_seconds)
     logs.extend(dns_logs)
 
     assets: list[Asset] = []
+    probe_hosts: list[str] = []
     for host in candidate_hosts:
         ips = dns_results.get(host, {}).get("ips", [])
         allowed_ips = [ip for ip in ips if scope.is_resolved_ip_allowed(ip)]
@@ -46,10 +51,11 @@ def discover_assets_with_audit(scope: ScopeConfig, settings: ScoutSettings) -> t
             rejected.append(rejected_candidate(host, "dnsx", "resolved_ip_out_of_scope", scope_context={"program_id": scope.program_id}, metadata={"ips": ips}))
             continue
         assets.append(host_asset(scope.program_id, host, ["scope_seed" if host in root_domains else "subfinder", "dnsx"], ip=allowed_ips[0] if allowed_ips else None))
+        probe_hosts.append(host)
 
     rate_limiter = RateLimiter(settings.requests_per_minute)
     http_rows, http_logs = httpx.probe(
-        candidate_hosts,
+        probe_hosts,
         httpx_path=settings.httpx_path,
         timeout=settings.timeout_seconds,
         rate_limiter=rate_limiter,
@@ -84,11 +90,21 @@ def discover_assets_with_audit(scope: ScopeConfig, settings: ScoutSettings) -> t
 
 
 def _allowed_hosts(hosts: list[str], scope: ScopeConfig) -> list[str]:
+    allowed, _rejected = _filter_allowed_hosts(hosts, scope)
+    return allowed
+
+
+def _filter_allowed_hosts(hosts: list[str], scope: ScopeConfig) -> tuple[list[str], list[str]]:
     out: list[str] = []
+    rejected: list[str] = []
     seen: set[str] = set()
     for host in hosts:
         normalized = (host or "").lower().rstrip(".")
-        if normalized and normalized not in seen and scope.is_host_allowed(normalized):
-            seen.add(normalized)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        if scope.is_host_allowed(normalized):
             out.append(normalized)
-    return out
+        else:
+            rejected.append(normalized)
+    return out, rejected

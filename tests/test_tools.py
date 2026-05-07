@@ -55,6 +55,16 @@ class ToolTests(unittest.TestCase):
         self.assertIn("-threads", run_cmd.call_args.args[0])
         self.assertIn("3", run_cmd.call_args.args[0])
 
+    @patch("aether_scout.tools.httpx.run_cmd")
+    @patch("aether_scout.tools.httpx.tool_available", return_value=True)
+    def test_httpx_rate_limiter_runs_per_host(self, _available, run_cmd):
+        limiter = Mock()
+        run_cmd.return_value = result("")
+        httpx.probe(["a.example.com", "b.example.com"], rate_limiter=limiter)
+        self.assertEqual(limiter.wait.call_count, 2)
+        inputs = [call.kwargs["input_text"] for call in run_cmd.call_args_list]
+        self.assertEqual(inputs, ["a.example.com\n", "b.example.com\n"])
+
     @patch("aether_scout.discovery.httpx.probe", return_value=([], []))
     @patch("aether_scout.discovery.dnsx.resolve", return_value=({}, []))
     @patch("aether_scout.discovery.subfinder.discover")
