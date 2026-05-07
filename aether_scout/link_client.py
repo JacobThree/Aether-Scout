@@ -24,9 +24,18 @@ class LinkClient:
         return self._request("POST", "/assets", asset)
 
     def post_assets(self, assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return self._post_collection("/assets", "assets", assets)
+
+    def post_surfaces(self, surfaces: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return self._post_collection("/surfaces", "surfaces", surfaces)
+
+    def post_schemas(self, schemas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return self._post_collection("/schemas", "schemas", schemas)
+
+    def _post_collection(self, path: str, key: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         responses: list[dict[str, Any]] = []
-        for chunk in _chunks(assets, self.batch_size):
-            responses.append(self._request("POST", "/assets", {"assets": chunk}))
+        for chunk in _chunks(rows, self.batch_size):
+            responses.append(self._request("POST", path, {key: chunk}))
         return responses
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:

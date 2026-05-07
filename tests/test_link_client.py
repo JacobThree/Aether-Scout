@@ -41,6 +41,17 @@ class LinkClientTests(unittest.TestCase):
         payloads = [json.loads(call.args[0].data.decode("utf-8")) for call in urlopen.call_args_list]
         self.assertEqual(payloads, [{"assets": [{"id": 1}, {"id": 2}]}, {"assets": [{"id": 3}]}])
 
+    @patch("aether_scout.link_client.request.urlopen", return_value=Response('{"accepted": true}'))
+    def test_post_surfaces_and_schemas_use_expected_paths(self, urlopen):
+        client = LinkClient("http://link", batch_size=2)
+        self.assertEqual(client.post_surfaces([{"surface_id": "s1"}]), [{"accepted": True}])
+        self.assertEqual(client.post_schemas([{"schema_id": "sc1"}]), [{"accepted": True}])
+
+        paths = [call.args[0].full_url for call in urlopen.call_args_list]
+        payloads = [json.loads(call.args[0].data.decode("utf-8")) for call in urlopen.call_args_list]
+        self.assertEqual(paths, ["http://link/surfaces", "http://link/schemas"])
+        self.assertEqual(payloads, [{"surfaces": [{"surface_id": "s1"}]}, {"schemas": [{"schema_id": "sc1"}]}])
+
     def test_batch_size_bounds(self):
         with self.assertRaises(ValueError):
             LinkClient("http://link", batch_size=0)

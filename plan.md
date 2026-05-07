@@ -1,12 +1,12 @@
 # Implementation Plan: Aether-Scout
 
 ## Overview
-Aether-Scout already has a Python CLI scaffold, scope model, discovery orchestrator, Link client, and basic tests. This plan turns the scaffold into a conservative, spec-compliant discovery service by hardening scope enforcement, asset schema behavior, tool wrappers, Link integration, CLI smoke coverage, and documentation.
+Aether-Scout already has a Python CLI scaffold, scope model, discovery orchestrator, Link client, conservative asset discovery, audit logging, throttling, and basic tests. The completed MVP hardens scope enforcement, asset schema behavior, tool wrappers, Link integration, CLI smoke coverage, and documentation. The next roadmap extends Scout into a scoped AI/RAG surface mapper, request-shape normalizer, viability scorer, and import-only external metadata adapter layer without adding exploit behavior.
 
 ## Architecture Decisions
 - Keep runtime dependency-free by default. Use Python standard library and optional external binaries only through `aether_scout/tools/`.
 - Fail closed on scope ambiguity. Scope validation happens before discovery, and every candidate host/URL is filtered again before output.
-- Keep Aether-Link as policy owner. Aether-Scout posts assets only; it does not create Aether-Probe jobs or classify final vulnerabilities.
+- Keep Aether-Link as policy owner. Aether-Scout posts metadata-only assets, surfaces, and schemas; it does not create Aether-Probe jobs or classify final vulnerabilities.
 - Treat external recon tools as optional. Missing `subfinder`, `dnsx`, or `httpx` should log and continue with conservative fallbacks where possible.
 - Passive discovery modules stay enabled by default because they do not poll target systems. Active polling modules such as HTTP probing, robots/sitemap fetches, and MCP indicator checks require scope gates and rate limiting.
 - CIDR rules are validation-only for MVP. Aether-Scout may use CIDR entries to confirm that a discovered hostname resolves to an approved address, but it must not actively enumerate or scan CIDR ranges.
@@ -36,6 +36,24 @@ Scope model and validation
     |       +-- Link config ingestion tests
     |
     +-- Negative safety tests
+
+Completed MVP
+    |
+    +-- Surface model and mapper
+    |       |
+    |       +-- Surface JSONL output and audit records
+    |       |       |
+    |       |       +-- Link surface push contract
+    |
+    +-- Request-shape import and normalization
+    |       |
+    |       +-- Schema JSONL output and audit records
+    |       |       |
+    |       |       +-- Link schema push contract
+    |
+    +-- Viability scoring
+    |
+    +-- Import-only external adapters
 ```
 
 ## Task List
@@ -331,19 +349,210 @@ Scope model and validation
 - [x] Mock Aether-Link flow works.
 - [x] Docs match behavior.
 - [x] Safety boundaries reviewed.
-- [ ] Human reviewed and approved plan before implementation.
+- [x] MVP plan implemented.
+
+### Phase 5: Surface Mapping and Metadata Import
+
+## Task 12: Implement Surface Mapper
+**Description:** Add metadata-only surface candidates for likely AI/RAG/MCP/copilot/helpdesk/chat surfaces inside approved scope. Surface mapping must not generate payloads, execute exploit tests, classify vulnerabilities, create Probe jobs, or auto-submit reports.
+
+**Acceptance criteria:**
+- [ ] Add `Surface` model with `surface_id`, `program_id`, `asset_id`, `surface_type`, `url`, optional `method`, `confidence`, `evidence_metadata`, `indicators`, `scope_status`, and `discovered_at`.
+- [ ] Support surface types: `rag_chat`, `ai_chat`, `copilot`, `helpdesk_bot`, `support_assistant`, `mcp_endpoint`, `openapi_schema`, `websocket_chat`, `graphql_ai`, `document_upload`, and `unknown_ai_surface`.
+- [ ] Detect indicators from known paths, page text, script names, provided network hints, OpenAPI tags, sitemap paths, and robots paths.
+- [ ] Add `aether-scout map-surfaces --scope <scope.toml> --out surfaces.jsonl`.
+- [ ] Add `aether-scout push-surfaces --surfaces surfaces.jsonl --link-url <url>`.
+- [ ] Scope-filter every candidate before output or Link push.
+- [ ] Send out-of-scope surface candidates to audit log, not primary output.
+
+**Verification:**
+- [ ] Tests cover accepted surfaces, rejected surfaces, JSONL output, and Link push.
+- [ ] Full suite passes: `python -m unittest discover -s tests`
+
+**Dependencies:** Tasks 1-11
+
+**Files likely touched:**
+- `aether_scout/models/surface.py`
+- `aether_scout/surface_mapper.py`
+- `aether_scout/cli.py`
+- `aether_scout/link_client.py`
+- `aether_scout/audit.py`
+- `tests/test_surface_mapper.py`
+- `tests/test_link_client.py`
+
+**Estimated scope:** M
+
+## Task 13: Import and Normalize Request Shapes
+**Description:** Import recorder/Burp/manual request-shape metadata and convert it into conservative schema/surface candidates. Scout must not replay requests or test vulnerabilities.
+
+**Acceptance criteria:**
+- [ ] Add `aether-scout import-request-shapes --input recording.json --out schemas.jsonl`.
+- [ ] Add `aether-scout push-schemas --schemas schemas.jsonl --link-url <url>`.
+- [ ] Detect metadata only: `prompt_key`, `tenant_key`, `workspace_key`, `org_key`, `response_text_path`, `sources_path`, `citations_path`, streaming mode, and upload endpoint relationship.
+- [ ] Redact secrets before output or Link push.
+- [ ] Preserve confidence and ambiguity fields.
+- [ ] Scope-filter imported records before output or Link submission.
+- [ ] Submit metadata only to Link `/schemas` or `/surfaces`.
+
+**Verification:**
+- [ ] Tests cover sample recordings, redaction, schema output, surface output, and rejected records.
+- [ ] Full suite passes: `python -m unittest discover -s tests`
+
+**Dependencies:** Task 12 can run in parallel if write scope is split; Link schema push depends on Task 15.
+
+**Files likely touched:**
+- `aether_scout/models/schema.py`
+- `aether_scout/request_shapes.py`
+- `aether_scout/cli.py`
+- `aether_scout/link_client.py`
+- `tests/test_request_shapes.py`
+
+**Estimated scope:** M
+
+## Task 14: Add AI/RAG Surface Viability Scoring
+**Description:** Rank discovered surfaces by likely value for bounty-relevant AI/RAG testing without running exploit tests or making vulnerability claims.
+
+**Acceptance criteria:**
+- [ ] Add rule-based scoring factors for AI/chat indicators, RAG/document/source indicators, tenant/workspace/team UI indicators, upload/document management indicators, citation/source UI indicators, auth-required surfaces, API schema confidence, and program policy status.
+- [ ] Output `viability_score` from `0.0` to `1.0`.
+- [ ] Output `recommended_next_step`, `blockers`, and `evidence_metadata`.
+- [ ] Add `aether-scout score-surfaces --surfaces surfaces.jsonl --out scored_surfaces.jsonl`.
+- [ ] Label fatal blockers clearly instead of hiding them inside score.
+- [ ] Keep Link as final authority and do not create Probe jobs.
+
+**Verification:**
+- [ ] Tests cover high, medium, low, and fatal-blocker scoring.
+- [ ] Full suite passes: `python -m unittest discover -s tests`
+
+**Dependencies:** Task 12
+
+**Files likely touched:**
+- `aether_scout/scoring.py`
+- `aether_scout/cli.py`
+- `tests/test_scoring.py`
+
+**Estimated scope:** S
+
+## Task 15: Polish Link Push Contracts for Assets, Surfaces, and Schemas
+**Description:** Extend Link client push support beyond assets so Scout can send metadata-only assets, surfaces, and schemas in bounded chunks with clear errors.
+
+**Acceptance criteria:**
+- [ ] Link client supports `GET /health`, `GET /configs/current`, `POST /assets`, `POST /surfaces`, and `POST /schemas`.
+- [ ] Assets, surfaces, and schemas send in bounded chunks of 50-100 records.
+- [ ] Batch size remains configurable with safe validation.
+- [ ] `Authorization: Bearer ...` is sent when token exists.
+- [ ] HTTP errors include method, path, status code, and response body.
+- [ ] Raw credentials are not logged.
+
+**Verification:**
+- [ ] Tests pass: `python -m unittest tests.test_link_client`
+- [ ] Local mocked Link server covers asset, surface, and schema push.
+- [ ] Full suite passes: `python -m unittest discover -s tests`
+
+**Dependencies:** Tasks 7, 12, 13
+
+**Files likely touched:**
+- `aether_scout/link_client.py`
+- `tests/test_link_client.py`
+- `tests/test_link_run.py`
+
+**Estimated scope:** S
+
+## Task 16: Add Import-Only External Tool Adapters
+**Description:** Import asset/surface/schema metadata from external tools without executing target requests by default.
+
+**Acceptance criteria:**
+- [ ] Add adapter interface with `adapter_name`, `supported_input_format`, `output_type`, and `safety_mode: import_only`.
+- [ ] Add MVP adapters for httpx JSONL, subfinder text, OpenAPI JSON, generic URL list, and optional Burp sitemap/HAR metadata.
+- [ ] Add `aether-scout adapters list`.
+- [ ] Add `aether-scout adapters import --adapter httpx --input file.jsonl --out assets.jsonl`.
+- [ ] Scope-filter all imported candidates.
+- [ ] Send rejected candidates to audit log.
+- [ ] Deduplicate imported records.
+- [ ] Malformed input fails clearly or emits audit records where appropriate.
+
+**Verification:**
+- [ ] Tests cover scope filtering, malformed input, duplicate records, and rejected candidates.
+- [ ] Full suite passes: `python -m unittest discover -s tests`
+
+**Dependencies:** Tasks 3, 12, 13
+
+**Files likely touched:**
+- `aether_scout/adapters/`
+- `aether_scout/cli.py`
+- `aether_scout/audit.py`
+- `tests/test_adapters.py`
+
+**Estimated scope:** M
+
+## Task 17: Improve Rejected Candidate Audit Log for Assets, Surfaces, and Schemas
+**Description:** Expand audit records so operators can understand refused candidates across all output types without mixing rejected records into primary output.
+
+**Acceptance criteria:**
+- [ ] Rejected records include candidate value, candidate type, source module, rejection reason, matching scope rule if available, timestamp, confidence, and ambiguity.
+- [ ] `--audit-log rejected.jsonl` works for asset, surface, schema, and adapter import flows.
+- [ ] Primary `--out` contains accepted assets/surfaces/schemas only.
+- [ ] Rejected candidates are never treated as findings.
+- [ ] Audit records cover out-of-scope hosts, excluded paths, ambiguous candidates, malformed URLs, and duplicates.
+
+**Verification:**
+- [ ] Tests cover rejected records for asset, surface, schema, and adapter flows.
+- [ ] Full suite passes: `python -m unittest discover -s tests`
+
+**Dependencies:** Tasks 12, 13, 16
+
+**Files likely touched:**
+- `aether_scout/audit.py`
+- `aether_scout/cli.py`
+- `tests/test_audit.py`
+
+**Estimated scope:** S
+
+## Task 18: Expand Conservative AI Path Indicators
+**Description:** Add a small curated AI/RAG/MCP indicator list checked only against already accepted scoped base URLs using shared throttling.
+
+**Acceptance criteria:**
+- [ ] Add indicators for `/api/chat`, `/chat`, `/assistant`, `/copilot`, `/ask`, `/api/ask`, `/api/ai`, `/api/search`, `/mcp`, `/api/mcp`, `/.well-known/ai-plugin.json`, and `/openapi.json`.
+- [ ] Check indicator paths only against accepted scoped base URLs.
+- [ ] Use existing throttling/rate-limit path.
+- [ ] Record indicators as metadata, not vulnerabilities.
+- [ ] Missing paths and 404s do not create noisy errors.
+- [ ] Positive indicators create surface candidates only.
+
+**Verification:**
+- [ ] Tests use mocked HTTP responses for positive, negative, and error cases.
+- [ ] Full suite passes: `python -m unittest discover -s tests`
+
+**Dependencies:** Tasks 12, 9
+
+**Files likely touched:**
+- `aether_scout/surface_mapper.py`
+- `aether_scout/tools/mcp_detector.py`
+- `aether_scout/throttle.py`
+- `tests/test_surface_mapper.py`
+
+**Estimated scope:** S
+
+### Checkpoint: Surface Metadata Roadmap
+- [ ] `python -m unittest discover -s tests` passes.
+- [ ] Scout outputs metadata-only assets, surfaces, and schemas.
+- [ ] Link push works for assets, surfaces, and schemas.
+- [ ] Primary outputs contain accepted candidates only.
+- [ ] Audit logs contain rejected candidates only.
+- [ ] No exploit tests, payload generation, Probe job creation, or vulnerability classification added.
 
 ## Parallelization Opportunities
-- Tasks 1 and 7 can run in parallel after plan approval.
-- Tasks 3 and 7 can run in parallel because asset internals and Link transport are separate.
-- Tasks 4 and 5 can run in parallel after Task 3 if wrapper ownership is split by file.
-- Task 10 can start after CLI command behavior stabilizes in Task 6.
+- Tasks 12 and 13 can run in parallel if model/CLI write ownership is coordinated.
+- Task 14 can start after Task 12 surface JSONL shape is stable.
+- Task 15 can run alongside Tasks 12 and 13 after endpoint payload shapes are agreed.
+- Task 16 can run after existing asset import patterns and new surface/schema models are stable.
+- Task 17 should follow Tasks 12, 13, and 16 so audit shape covers all candidate types.
+- Task 18 can run with Task 12 if path-indicator ownership is assigned clearly.
 
 Must be sequential:
-- Task 2 depends on Task 1 scope semantics.
-- Task 6 depends on core discovery/assets being stable.
-- Task 8 depends on CLI and Link client coverage.
-- Task 11 should be last.
+- Completed MVP Tasks 1-11 remain baseline and should stay green before new work merges.
+- Task 14 depends on Task 12.
+- Task 17 depends on candidate output flows from Tasks 12, 13, and 16.
 
 ## Risks and Mitigations
 | Risk | Impact | Mitigation |
@@ -357,6 +566,10 @@ Must be sequential:
 | Audit output leaks accepted/rejected records into wrong file | Medium | Keep accepted asset writer and audit writer separate, with JSONL tests |
 | Throttling slows local tests | Low | Inject clock/sleep dependency for deterministic unit tests |
 | Batch submission partially fails | Medium | Return per-chunk results and surface failed chunk context in errors |
+| Surface mapping drifts into vulnerability claims | High | Store indicators/evidence only, add safety-boundary tests, avoid payload strings |
+| Request-shape import leaks secrets | High | Central redaction helper with tests for headers, cookies, tokens, and body fields |
+| External adapter import becomes active scanning | High | Adapter `safety_mode` is `import_only`; adapters read files only |
+| Viability score feels authoritative | Medium | Keep explainable factors, blockers, and non-vulnerability wording in output |
 
 ## Resolved Decisions
 - Passive discovery remains enabled by default. Active polling modules require scope checks and rate limiting.
@@ -364,6 +577,9 @@ Must be sequential:
 - Primary `--out` JSONL contains accepted assets only. Rejected candidates go to `--audit-log`.
 - `requests_per_minute` throttling is required in MVP.
 - `POST /assets` uses bounded chunked batch submission, defaulting to 50-100 assets per request.
+- New surface/schema flows must stay metadata-only.
+- External adapters are import-only by default.
+- Viability scoring ranks next-review priority, not vulnerability presence.
 
 ## Open Questions
 None.
