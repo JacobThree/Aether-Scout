@@ -5,12 +5,14 @@ from urllib.parse import urlparse
 from .common import iter_json_lines, parse_urls, run_cmd, tool_available
 
 
-def probe(hosts: list[str], *, httpx_path: str = "httpx", timeout: int = 10) -> tuple[list[dict], list[str]]:
+def probe(hosts: list[str], *, httpx_path: str = "httpx", timeout: int = 10, rate_limiter=None) -> tuple[list[dict], list[str]]:
     logs: list[str] = []
     if not hosts:
         return [], logs
     if not tool_available(httpx_path):
         return _fallback_urls(hosts), [f"httpx unavailable: {httpx_path}; emitted conservative https candidates"]
+    if rate_limiter is not None:
+        rate_limiter.wait()
     cmd = [
         httpx_path,
         "-silent",

@@ -26,6 +26,9 @@ class ScopeConfig:
     def include_rules(self) -> list[ScopeRule]:
         return [r for r in self.rules if r.rule_type == "include"]
 
+    def cidr_include_rules(self) -> list[ScopeRule]:
+        return [r for r in self.include_rules() if r.scope_type == "cidr"]
+
     def root_domains(self) -> list[str]:
         roots: list[str] = []
         seen: set[str] = set()
@@ -72,6 +75,29 @@ class ScopeConfig:
             return True
         candidate_path = parsed.path or "/"
         return any(candidate_path.startswith(urlparse(r.pattern).path or "/") for r in explicit_url_rules)
+
+    def is_resolved_ip_allowed(self, ip: str | None) -> bool:
+        if not ip:
+            return True
+        try:
+            candidate = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+
+        cidr_rules = [r for r in self.rules if r.scope_type == "cidr"]
+        if not cidr_rules:
+            return True
+
+        allowed = False
+        for rule in cidr_rules:
+            network = ipaddress.ip_network(rule.pattern, strict=False)
+            if candidate not in network:
+                continue
+            if rule.rule_type == "exclude":
+                return False
+            if rule.rule_type == "include":
+                allowed = True
+        return allowed
 
 
 def detect_scope_type(value: str) -> str:

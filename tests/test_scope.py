@@ -30,6 +30,33 @@ class ScopeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             scope.validate_for_run()
 
+    def test_empty_scope_rejected(self):
+        scope = ScopeConfig(program_id="p1")
+        with self.assertRaises(ValueError):
+            scope.validate_for_run()
+
+    def test_exclude_overrides_include(self):
+        scope = ScopeConfig(
+            program_id="p1",
+            rules=[ScopeRule("*.example.com", "include"), ScopeRule("admin.example.com", "exclude")],
+        )
+        self.assertTrue(scope.is_host_allowed("app.example.com"))
+        self.assertFalse(scope.is_host_allowed("admin.example.com"))
+
+    def test_cidr_validates_resolved_ip_without_root_domain_seed(self):
+        scope = ScopeConfig(
+            program_id="p1",
+            rules=[
+                ScopeRule("*.example.com", "include"),
+                ScopeRule("203.0.113.0/24", "include"),
+                ScopeRule("203.0.113.13/32", "exclude"),
+            ],
+        )
+        self.assertEqual(scope.root_domains(), ["example.com"])
+        self.assertTrue(scope.is_resolved_ip_allowed("203.0.113.10"))
+        self.assertFalse(scope.is_resolved_ip_allowed("203.0.113.13"))
+        self.assertFalse(scope.is_resolved_ip_allowed("198.51.100.10"))
+
 
 if __name__ == "__main__":
     unittest.main()

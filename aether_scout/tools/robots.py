@@ -4,9 +4,9 @@ from urllib import request, error
 from urllib.parse import urljoin, urlparse
 
 
-def discover(base_url: str, *, user_agent: str, timeout: int = 10) -> list[str]:
+def discover(base_url: str, *, user_agent: str, timeout: int = 10, rate_limiter=None) -> list[str]:
     paths: list[str] = []
-    robots = _fetch(urljoin(base_url.rstrip("/") + "/", "robots.txt"), user_agent=user_agent, timeout=timeout)
+    robots = _fetch(urljoin(base_url.rstrip("/") + "/", "robots.txt"), user_agent=user_agent, timeout=timeout, rate_limiter=rate_limiter)
     if robots:
         for line in robots.splitlines():
             key, _, value = line.partition(":")
@@ -15,13 +15,13 @@ def discover(base_url: str, *, user_agent: str, timeout: int = 10) -> list[str]:
             if key in {"allow", "disallow"} and value.startswith("/") and value != "/":
                 paths.append(value)
             if key == "sitemap" and value.startswith("http"):
-                paths.extend(_sitemap_paths(value, user_agent=user_agent, timeout=timeout))
-    paths.extend(_sitemap_paths(urljoin(base_url.rstrip("/") + "/", "sitemap.xml"), user_agent=user_agent, timeout=timeout))
+                paths.extend(_sitemap_paths(value, user_agent=user_agent, timeout=timeout, rate_limiter=rate_limiter))
+    paths.extend(_sitemap_paths(urljoin(base_url.rstrip("/") + "/", "sitemap.xml"), user_agent=user_agent, timeout=timeout, rate_limiter=rate_limiter))
     return _dedupe(paths)[:50]
 
 
-def _sitemap_paths(url: str, *, user_agent: str, timeout: int) -> list[str]:
-    body = _fetch(url, user_agent=user_agent, timeout=timeout)
+def _sitemap_paths(url: str, *, user_agent: str, timeout: int, rate_limiter=None) -> list[str]:
+    body = _fetch(url, user_agent=user_agent, timeout=timeout, rate_limiter=rate_limiter)
     if not body:
         return []
     paths: list[str] = []
@@ -33,7 +33,9 @@ def _sitemap_paths(url: str, *, user_agent: str, timeout: int) -> list[str]:
     return paths
 
 
-def _fetch(url: str, *, user_agent: str, timeout: int) -> str:
+def _fetch(url: str, *, user_agent: str, timeout: int, rate_limiter=None) -> str:
+    if rate_limiter is not None:
+        rate_limiter.wait()
     req = request.Request(url, headers={"user-agent": user_agent})
     try:
         with request.urlopen(req, timeout=timeout) as resp:
