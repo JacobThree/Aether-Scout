@@ -10,6 +10,7 @@ from .config import settings_from_env
 from .discovery import discover_assets_with_audit
 from .link_client import LinkClient
 from .scope_loader import load_scope_file, scope_from_link_current
+from .surface_mapper import map_surfaces
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +31,16 @@ def build_parser() -> argparse.ArgumentParser:
     push = sub.add_parser("push-assets")
     push.add_argument("--assets", required=True)
     push.add_argument("--link-url", required=True)
+
+    map_cmd = sub.add_parser("map-surfaces")
+    map_cmd.add_argument("--scope", required=True)
+    map_cmd.add_argument("--out", required=True)
+    map_cmd.add_argument("--audit-log")
+    map_cmd.add_argument("--passive-only", action="store_true")
+
+    push_surfaces = sub.add_parser("push-surfaces")
+    push_surfaces.add_argument("--surfaces", required=True)
+    push_surfaces.add_argument("--link-url", required=True)
     return parser
 
 
@@ -49,6 +60,14 @@ def main(argv: list[str] | None = None) -> int:
             responses = client.post_assets(assets)
             print(f"posted={len(responses)} link_url={args.link_url}")
             return 0
+        if args.command == "push-surfaces":
+            client = LinkClient(args.link_url, settings.api_token, timeout=settings.timeout_seconds, batch_size=settings.link_batch_size)
+            surfaces = _read_jsonl(args.surfaces)
+            responses = client.post_surfaces(surfaces)
+            print(f"posted={len(responses)} link_url={args.link_url}")
+            return 0
+        if args.command == "map-surfaces":
+            return _map_surfaces(args, settings)
         if args.command == "run":
             return _run(args, settings)
     except Exception as exc:
@@ -84,6 +103,20 @@ def _run(args: argparse.Namespace, settings) -> int:
     for line in logs:
         print(f"log={line}", file=sys.stderr)
     print(f"program_id={scope.program_id} assets={len(assets)} rejected={len(rejected)} out={out_path} posted={posted}")
+    return 0
+
+
+def _map_surfaces(args: argparse.Namespace, settings) -> int:
+    settings.passive_only = bool(args.passive_only or settings.passive_only)
+    scope = load_scope_file(args.scope)
+    surfaces, logs, rejected = map_surfaces(scope, settings)
+    out_path = Path(args.out)
+    _write_jsonl(out_path, [surface.to_dict() for surface in surfaces])
+    if args.audit_log:
+        _write_jsonl(Path(args.audit_log), [record.to_dict() for record in rejected])
+    for line in logs:
+        print(f"log={line}", file=sys.stderr)
+    print(f"program_id={scope.program_id} surfaces={len(surfaces)} rejected={len(rejected)} out={out_path}")
     return 0
 
 
