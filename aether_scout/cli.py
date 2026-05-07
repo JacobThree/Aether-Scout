@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 from . import __version__
+from .adapters import import_with_adapter, list_adapters
 from .config import settings_from_env
 from .discovery import discover_assets_with_audit
 from .link_client import LinkClient
@@ -52,6 +53,20 @@ def build_parser() -> argparse.ArgumentParser:
     push_schemas = sub.add_parser("push-schemas")
     push_schemas.add_argument("--schemas", required=True)
     push_schemas.add_argument("--link-url", required=True)
+
+    score = sub.add_parser("score-surfaces")
+    score.add_argument("--surfaces", required=True)
+    score.add_argument("--out", required=True)
+
+    adapters = sub.add_parser("adapters")
+    adapter_sub = adapters.add_subparsers(dest="adapter_command", required=True)
+    adapter_sub.add_parser("list")
+    adapter_import = adapter_sub.add_parser("import")
+    adapter_import.add_argument("--adapter", required=True)
+    adapter_import.add_argument("--input", required=True)
+    adapter_import.add_argument("--scope", required=True)
+    adapter_import.add_argument("--out", required=True)
+    adapter_import.add_argument("--audit-log")
     return parser
 
 
@@ -85,6 +100,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "import-request-shapes":
             return _import_request_shapes(args)
+        if args.command == "score-surfaces":
+            return _score_surfaces(args)
+        if args.command == "adapters":
+            return _adapters(args)
         if args.command == "map-surfaces":
             return _map_surfaces(args, settings)
         if args.command == "run":
@@ -149,6 +168,31 @@ def _import_request_shapes(args: argparse.Namespace) -> int:
         _write_jsonl(Path(args.audit_log), [record.to_dict() for record in rejected])
     print(f"program_id={scope.program_id} schemas={len(schemas)} rejected={len(rejected)} out={out_path}")
     return 0
+
+
+def _score_surfaces(args: argparse.Namespace) -> int:
+    from .scoring import score_surfaces
+
+    scored = score_surfaces(_read_jsonl(args.surfaces))
+    _write_jsonl(Path(args.out), scored)
+    print(f"surfaces={len(scored)} out={args.out}")
+    return 0
+
+
+def _adapters(args: argparse.Namespace) -> int:
+    if args.adapter_command == "list":
+        for row in list_adapters():
+            print(json.dumps(row, sort_keys=True))
+        return 0
+    if args.adapter_command == "import":
+        scope = load_scope_file(args.scope)
+        output_type, rows, rejected = import_with_adapter(args.adapter, args.input, scope)
+        _write_jsonl(Path(args.out), rows)
+        if args.audit_log:
+            _write_jsonl(Path(args.audit_log), [record.to_dict() for record in rejected])
+        print(f"adapter={args.adapter} output_type={output_type} rows={len(rows)} rejected={len(rejected)} out={args.out}")
+        return 0
+    return 1
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
