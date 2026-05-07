@@ -357,17 +357,17 @@ Completed MVP
 **Description:** Add metadata-only surface candidates for likely AI/RAG/MCP/copilot/helpdesk/chat surfaces inside approved scope. Surface mapping must not generate payloads, execute exploit tests, classify vulnerabilities, create Probe jobs, or auto-submit reports.
 
 **Acceptance criteria:**
-- [ ] Add `Surface` model with `surface_id`, `program_id`, `asset_id`, `surface_type`, `url`, optional `method`, `confidence`, `evidence_metadata`, `indicators`, `scope_status`, and `discovered_at`.
-- [ ] Support surface types: `rag_chat`, `ai_chat`, `copilot`, `helpdesk_bot`, `support_assistant`, `mcp_endpoint`, `openapi_schema`, `websocket_chat`, `graphql_ai`, `document_upload`, and `unknown_ai_surface`.
-- [ ] Detect indicators from known paths, page text, script names, provided network hints, OpenAPI tags, sitemap paths, and robots paths.
-- [ ] Add `aether-scout map-surfaces --scope <scope.toml> --out surfaces.jsonl`.
-- [ ] Add `aether-scout push-surfaces --surfaces surfaces.jsonl --link-url <url>`.
-- [ ] Scope-filter every candidate before output or Link push.
-- [ ] Send out-of-scope surface candidates to audit log, not primary output.
+- [x] Add `Surface` model with `surface_id`, `program_id`, `asset_id`, `surface_type`, `url`, optional `method`, `confidence`, `evidence_metadata`, `indicators`, `scope_status`, and `discovered_at`.
+- [x] Support surface types: `rag_chat`, `ai_chat`, `copilot`, `helpdesk_bot`, `support_assistant`, `mcp_endpoint`, `openapi_schema`, `websocket_chat`, `graphql_ai`, `document_upload`, and `unknown_ai_surface`.
+- [x] Detect indicators from known paths, page text, script names, provided network hints, OpenAPI tags, sitemap paths, and robots paths.
+- [x] Add `aether-scout map-surfaces --scope <scope.toml> --out surfaces.jsonl`.
+- [x] Add `aether-scout push-surfaces --surfaces surfaces.jsonl --link-url <url>`.
+- [x] Scope-filter every candidate before output or Link push.
+- [x] Send out-of-scope surface candidates to audit log, not primary output.
 
 **Verification:**
-- [ ] Tests cover accepted surfaces, rejected surfaces, JSONL output, and Link push.
-- [ ] Full suite passes: `python -m unittest discover -s tests`
+- [x] Tests cover accepted surfaces, rejected surfaces, JSONL output, and Link push.
+- [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Tasks 1-11
 
@@ -386,17 +386,17 @@ Completed MVP
 **Description:** Import recorder/Burp/manual request-shape metadata and convert it into conservative schema/surface candidates. Scout must not replay requests or test vulnerabilities.
 
 **Acceptance criteria:**
-- [ ] Add `aether-scout import-request-shapes --input recording.json --out schemas.jsonl`.
-- [ ] Add `aether-scout push-schemas --schemas schemas.jsonl --link-url <url>`.
-- [ ] Detect metadata only: `prompt_key`, `tenant_key`, `workspace_key`, `org_key`, `response_text_path`, `sources_path`, `citations_path`, streaming mode, and upload endpoint relationship.
-- [ ] Redact secrets before output or Link push.
-- [ ] Preserve confidence and ambiguity fields.
-- [ ] Scope-filter imported records before output or Link submission.
-- [ ] Submit metadata only to Link `/schemas` or `/surfaces`.
+- [x] Add `aether-scout import-request-shapes --input recording.json --out schemas.jsonl`.
+- [x] Add `aether-scout push-schemas --schemas schemas.jsonl --link-url <url>`.
+- [x] Detect metadata only: `prompt_key`, `tenant_key`, `workspace_key`, `org_key`, `response_text_path`, `sources_path`, `citations_path`, streaming mode, and upload endpoint relationship.
+- [x] Redact secrets before output or Link push.
+- [x] Preserve confidence and ambiguity fields.
+- [x] Scope-filter imported records before output or Link submission.
+- [x] Submit metadata only to Link `/schemas` or `/surfaces`.
 
 **Verification:**
-- [ ] Tests cover sample recordings, redaction, schema output, surface output, and rejected records.
-- [ ] Full suite passes: `python -m unittest discover -s tests`
+- [x] Tests cover sample recordings, redaction, schema output, surface output, and rejected records.
+- [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Task 12 can run in parallel if write scope is split; Link schema push depends on Task 15.
 
@@ -413,16 +413,16 @@ Completed MVP
 **Description:** Rank discovered surfaces by likely value for bounty-relevant AI/RAG testing without running exploit tests or making vulnerability claims.
 
 **Acceptance criteria:**
-- [ ] Add rule-based scoring factors for AI/chat indicators, RAG/document/source indicators, tenant/workspace/team UI indicators, upload/document management indicators, citation/source UI indicators, auth-required surfaces, API schema confidence, and program policy status.
-- [ ] Output `viability_score` from `0.0` to `1.0`.
-- [ ] Output `recommended_next_step`, `blockers`, and `evidence_metadata`.
-- [ ] Add `aether-scout score-surfaces --surfaces surfaces.jsonl --out scored_surfaces.jsonl`.
-- [ ] Label fatal blockers clearly instead of hiding them inside score.
-- [ ] Keep Link as final authority and do not create Probe jobs.
+- [x] Add rule-based scoring factors for AI/chat indicators, RAG/document/source indicators, tenant/workspace/team UI indicators, upload/document management indicators, citation/source UI indicators, auth-required surfaces, API schema confidence, and program policy status.
+- [x] Output `viability_score` from `0.0` to `1.0`.
+- [x] Output `recommended_next_step`, `blockers`, and `evidence_metadata`.
+- [x] Add `aether-scout score-surfaces --surfaces surfaces.jsonl --out scored_surfaces.jsonl`.
+- [x] Label fatal blockers clearly instead of hiding them inside score.
+- [x] Keep Link as final authority and do not create Probe jobs.
 
 **Verification:**
-- [ ] Tests cover high, medium, low, and fatal-blocker scoring.
-- [ ] Full suite passes: `python -m unittest discover -s tests`
+- [x] Tests cover high, medium, low, and fatal-blocker scoring.
+- [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Task 12
 
@@ -437,17 +437,17 @@ Completed MVP
 **Description:** Extend Link client push support beyond assets so Scout can send metadata-only assets, surfaces, and schemas in bounded chunks with clear errors.
 
 **Acceptance criteria:**
-- [ ] Link client supports `GET /health`, `GET /configs/current`, `POST /assets`, `POST /surfaces`, and `POST /schemas`.
-- [ ] Assets, surfaces, and schemas send in bounded chunks of 50-100 records.
-- [ ] Batch size remains configurable with safe validation.
-- [ ] `Authorization: Bearer ...` is sent when token exists.
-- [ ] HTTP errors include method, path, status code, and response body.
-- [ ] Raw credentials are not logged.
+- [x] Link client supports `GET /health`, `GET /configs/current`, `POST /assets`, `POST /surfaces`, and `POST /schemas`.
+- [x] Assets, surfaces, and schemas send in bounded chunks of 50-100 records.
+- [x] Batch size remains configurable with safe validation.
+- [x] `Authorization: Bearer ...` is sent when token exists.
+- [x] HTTP errors include method, path, status code, and response body.
+- [x] Raw credentials are not logged.
 
 **Verification:**
-- [ ] Tests pass: `python -m unittest tests.test_link_client`
-- [ ] Local mocked Link server covers asset, surface, and schema push.
-- [ ] Full suite passes: `python -m unittest discover -s tests`
+- [x] Tests pass: `python -m unittest tests.test_link_client`
+- [x] Local mocked Link server covers asset, surface, and schema push.
+- [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Tasks 7, 12, 13
 
@@ -462,18 +462,18 @@ Completed MVP
 **Description:** Import asset/surface/schema metadata from external tools without executing target requests by default.
 
 **Acceptance criteria:**
-- [ ] Add adapter interface with `adapter_name`, `supported_input_format`, `output_type`, and `safety_mode: import_only`.
-- [ ] Add MVP adapters for httpx JSONL, subfinder text, OpenAPI JSON, generic URL list, and optional Burp sitemap/HAR metadata.
-- [ ] Add `aether-scout adapters list`.
-- [ ] Add `aether-scout adapters import --adapter httpx --input file.jsonl --out assets.jsonl`.
-- [ ] Scope-filter all imported candidates.
-- [ ] Send rejected candidates to audit log.
-- [ ] Deduplicate imported records.
-- [ ] Malformed input fails clearly or emits audit records where appropriate.
+- [x] Add adapter interface with `adapter_name`, `supported_input_format`, `output_type`, and `safety_mode: import_only`.
+- [x] Add MVP adapters for httpx JSONL, subfinder text, OpenAPI JSON, generic URL list, and optional Burp sitemap/HAR metadata.
+- [x] Add `aether-scout adapters list`.
+- [x] Add `aether-scout adapters import --adapter httpx --input file.jsonl --out assets.jsonl`.
+- [x] Scope-filter all imported candidates.
+- [x] Send rejected candidates to audit log.
+- [x] Deduplicate imported records.
+- [x] Malformed input fails clearly or emits audit records where appropriate.
 
 **Verification:**
-- [ ] Tests cover scope filtering, malformed input, duplicate records, and rejected candidates.
-- [ ] Full suite passes: `python -m unittest discover -s tests`
+- [x] Tests cover scope filtering, malformed input, duplicate records, and rejected candidates.
+- [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Tasks 3, 12, 13
 
@@ -489,15 +489,15 @@ Completed MVP
 **Description:** Expand audit records so operators can understand refused candidates across all output types without mixing rejected records into primary output.
 
 **Acceptance criteria:**
-- [ ] Rejected records include candidate value, candidate type, source module, rejection reason, matching scope rule if available, timestamp, confidence, and ambiguity.
-- [ ] `--audit-log rejected.jsonl` works for asset, surface, schema, and adapter import flows.
-- [ ] Primary `--out` contains accepted assets/surfaces/schemas only.
-- [ ] Rejected candidates are never treated as findings.
-- [ ] Audit records cover out-of-scope hosts, excluded paths, ambiguous candidates, malformed URLs, and duplicates.
+- [x] Rejected records include candidate value, candidate type, source module, rejection reason, matching scope rule if available, timestamp, confidence, and ambiguity.
+- [x] `--audit-log rejected.jsonl` works for asset, surface, schema, and adapter import flows.
+- [x] Primary `--out` contains accepted assets/surfaces/schemas only.
+- [x] Rejected candidates are never treated as findings.
+- [x] Audit records cover out-of-scope hosts, excluded paths, ambiguous candidates, malformed URLs, and duplicates.
 
 **Verification:**
-- [ ] Tests cover rejected records for asset, surface, schema, and adapter flows.
-- [ ] Full suite passes: `python -m unittest discover -s tests`
+- [x] Tests cover rejected records for asset, surface, schema, and adapter flows.
+- [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Tasks 12, 13, 16
 
@@ -512,16 +512,16 @@ Completed MVP
 **Description:** Add a small curated AI/RAG/MCP indicator list checked only against already accepted scoped base URLs using shared throttling.
 
 **Acceptance criteria:**
-- [ ] Add indicators for `/api/chat`, `/chat`, `/assistant`, `/copilot`, `/ask`, `/api/ask`, `/api/ai`, `/api/search`, `/mcp`, `/api/mcp`, `/.well-known/ai-plugin.json`, and `/openapi.json`.
-- [ ] Check indicator paths only against accepted scoped base URLs.
-- [ ] Use existing throttling/rate-limit path.
-- [ ] Record indicators as metadata, not vulnerabilities.
-- [ ] Missing paths and 404s do not create noisy errors.
-- [ ] Positive indicators create surface candidates only.
+- [x] Add indicators for `/api/chat`, `/chat`, `/assistant`, `/copilot`, `/ask`, `/api/ask`, `/api/ai`, `/api/search`, `/mcp`, `/api/mcp`, `/.well-known/ai-plugin.json`, and `/openapi.json`.
+- [x] Check indicator paths only against accepted scoped base URLs.
+- [x] Use existing throttling/rate-limit path.
+- [x] Record indicators as metadata, not vulnerabilities.
+- [x] Missing paths and 404s do not create noisy errors.
+- [x] Positive indicators create surface candidates only.
 
 **Verification:**
-- [ ] Tests use mocked HTTP responses for positive, negative, and error cases.
-- [ ] Full suite passes: `python -m unittest discover -s tests`
+- [x] Tests use mocked HTTP responses for positive, negative, and error cases.
+- [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Tasks 12, 9
 
@@ -534,12 +534,12 @@ Completed MVP
 **Estimated scope:** S
 
 ### Checkpoint: Surface Metadata Roadmap
-- [ ] `python -m unittest discover -s tests` passes.
-- [ ] Scout outputs metadata-only assets, surfaces, and schemas.
-- [ ] Link push works for assets, surfaces, and schemas.
-- [ ] Primary outputs contain accepted candidates only.
-- [ ] Audit logs contain rejected candidates only.
-- [ ] No exploit tests, payload generation, Probe job creation, or vulnerability classification added.
+- [x] `python -m unittest discover -s tests` passes.
+- [x] Scout outputs metadata-only assets, surfaces, and schemas.
+- [x] Link push works for assets, surfaces, and schemas.
+- [x] Primary outputs contain accepted candidates only.
+- [x] Audit logs contain rejected candidates only.
+- [x] No exploit tests, payload generation, Probe job creation, or vulnerability classification added.
 
 ## Parallelization Opportunities
 - Tasks 12 and 13 can run in parallel if model/CLI write ownership is coordinated.
