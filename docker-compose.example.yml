@@ -1,0 +1,10 @@
+services:
+  aether-scout:
+    image: aether-scout:latest
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./examples:/shared/configs/current:ro
+      - ./out:/shared/assets
+    command: ["aether-scout", "run", "--scope", "/shared/configs/current/scope.toml", "--out", "/shared/assets/assets.jsonl"]

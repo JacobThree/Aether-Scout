@@ -1,0 +1,14 @@
+program_id = "program_example_001"
+default_decision = "deny"
+
+[[rules]]
+type = "include"
+pattern = "*.example.com"
+
+[[rules]]
+type = "include"
+pattern = "https://api.example.com/allowed"
+
+[[rules]]
+type = "exclude"
+pattern = "admin.example.com"
