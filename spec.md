@@ -40,7 +40,7 @@ python -m pip install -e .
 Run with local scope:
 
 ```bash
-aether-scout run --scope ./examples/scope.toml --out ./assets.jsonl
+aether-scout run --scope ./examples/scope.toml --out ./assets.jsonl --audit-log ./rejected.jsonl
 ```
 
 Run with Aether-Link:
@@ -191,6 +191,7 @@ AETHER_SCOUT_PASSIVE_ONLY=false
 AETHER_SCOUT_MAX_CONCURRENT_PROBES=5
 AETHER_SCOUT_REQUESTS_PER_MINUTE=30
 AETHER_SCOUT_TIMEOUT_SECONDS=10
+AETHER_SCOUT_LINK_BATCH_SIZE=50
 AETHER_SCOUT_USER_AGENT=Aether-Scout authorized-recon
 ```
 
@@ -230,6 +231,12 @@ Modules:
 - `mcp_detector`: detect likely AI/MCP surfaces such as `/mcp`, `/api/mcp`, `/tools`, `/openapi.json`, `/swagger.json`, `/.well-known/openapi.json`, and `/.well-known/ai-plugin.json`.
 - `tech_fingerprint`: record visible technology hints without vulnerability claims.
 
+CIDR scope rules are validation-only for MVP. They validate resolved IPs for discovered hostnames and must not trigger CIDR enumeration or active IP block scanning.
+
+Primary asset output contains accepted assets only. Rejected candidates belong in an explicit audit JSONL file created with `--audit-log`.
+
+Active polling modules must use request throttling from `AETHER_SCOUT_REQUESTS_PER_MINUTE`. Aether-Link asset submission uses chunked batches controlled by `AETHER_SCOUT_LINK_BATCH_SIZE`.
+
 ## Success Criteria
 - `python -m unittest discover -s tests` passes.
 - `aether-scout validate-scope --scope ./examples/scope.toml` exits `0`.
@@ -241,9 +248,13 @@ Modules:
 - Asset output conforms to expected schema.
 - Aether-Link integration calls `/health`, `/configs/current`, and `/assets` with token support.
 
+## Resolved Decisions
+- Passive discovery stays enabled by default.
+- CIDR scope is validation-only for MVP.
+- Primary asset JSONL contains accepted assets only.
+- Rejected candidates are written only when `--audit-log` is provided.
+- Active polling uses run-level request throttling.
+- Aether-Link asset submission uses bounded batches.
+
 ## Open Questions
-- Should passive external sources be disabled by default unless `--passive-only` or explicit config enables them?
-- What exact confidence scoring formula should be used across discovery methods?
-- Should rate limiting be global per run or per host?
-- Should CIDR scope be supported for active probing in first release, or validation-only until policy is clearer?
-- Should JSONL output include rejected/out-of-scope candidates for audit, or only accepted candidates?
+None.

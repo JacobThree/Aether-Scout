@@ -50,8 +50,10 @@ class ToolTests(unittest.TestCase):
     def test_httpx_active_probe_uses_rate_limiter(self, _available, run_cmd):
         limiter = Mock()
         run_cmd.return_value = result("")
-        httpx.probe(["api.example.com"], rate_limiter=limiter)
+        httpx.probe(["api.example.com"], rate_limiter=limiter, max_concurrent_probes=3)
         limiter.wait.assert_called_once()
+        self.assertIn("-threads", run_cmd.call_args.args[0])
+        self.assertIn("3", run_cmd.call_args.args[0])
 
     @patch("aether_scout.discovery.httpx.probe", return_value=([], []))
     @patch("aether_scout.discovery.dnsx.resolve", return_value=({}, []))

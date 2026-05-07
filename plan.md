@@ -179,14 +179,14 @@ Scope model and validation
 
 **Acceptance criteria:**
 - [x] `validate-scope` returns `0` for example scope.
-- [ ] `run --scope --out` writes valid JSONL.
-- [ ] `run --scope --out --audit-log` writes rejected candidates with reasons to audit JSONL.
-- [ ] Primary `--out` contains accepted assets only.
+- [x] `run --scope --out` writes valid JSONL.
+- [x] `run --scope --out --audit-log` writes rejected candidates with reasons to audit JSONL.
+- [x] Primary `--out` contains accepted assets only.
 - [x] Missing scope exits non-zero with clear error.
 - [x] Bad default decision exits non-zero.
 
 **Verification:**
-- [ ] Tests pass: `python -m unittest tests.test_cli`
+- [x] Tests pass: `python -m unittest tests.test_cli`
 - [x] Manual check: `aether-scout validate-scope --scope ./examples/scope.toml`
 - [x] Full suite passes: `python -m unittest discover -s tests`
 
@@ -205,13 +205,13 @@ Scope model and validation
 
 **Acceptance criteria:**
 - [x] `GET /health` and `GET /configs/current` use expected paths.
-- [ ] `POST /assets` sends asset payloads in bounded chunks of 50-100 records per request.
-- [ ] Batch size is configurable with safe default and validation.
+- [x] `POST /assets` sends asset payloads in bounded chunks of 50-100 records per request.
+- [x] Batch size is configurable with safe default and validation.
 - [x] `Authorization: Bearer ...` is sent when token exists.
 - [x] HTTP errors include method, path, status code, and response body.
 
 **Verification:**
-- [ ] Tests pass: `python -m unittest tests.test_link_client`
+- [x] Tests pass: `python -m unittest tests.test_link_client`
 - [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Task 3
@@ -228,12 +228,12 @@ Scope model and validation
 **Acceptance criteria:**
 - [x] CLI fetches scope from Link when no local scope is provided.
 - [x] CLI checks Link health before discovery.
-- [ ] CLI posts discovered assets to `/assets` in chunks.
+- [x] CLI posts discovered assets to `/assets` in chunks.
 - [x] Posted assets are still scope-filtered.
-- [ ] Mock server observes chunk sizes within configured limits.
+- [x] Mock server observes chunk sizes within configured limits.
 
 **Verification:**
-- [ ] Tests pass: `python -m unittest tests.test_link_run`
+- [x] Tests pass: `python -m unittest tests.test_link_run`
 - [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Tasks 6, 7
@@ -246,9 +246,9 @@ Scope model and validation
 
 ### Checkpoint: End-to-End
 - [x] `python -m unittest discover -s tests` passes.
-- [ ] Local scope run works.
-- [ ] Mock Aether-Link run works.
-- [ ] JSONL output validates.
+- [x] Local scope run works.
+- [x] Mock Aether-Link run works.
+- [x] JSONL output validates.
 
 ### Phase 4: Configuration and Release Readiness
 
@@ -258,13 +258,13 @@ Scope model and validation
 **Acceptance criteria:**
 - [x] Environment variables map to `ScoutSettings` correctly.
 - [x] Invalid integer values fail clearly or use documented defaults.
-- [ ] Passive-only behavior is tested.
-- [ ] `AETHER_SCOUT_REQUESTS_PER_MINUTE` is enforced for HTTP, robots/sitemap, and MCP indicator requests.
-- [ ] `AETHER_SCOUT_MAX_CONCURRENT_PROBES` is bounded and respected by active probes.
-- [ ] Passive discovery remains enabled by default unless explicitly disabled by config.
+- [x] Passive-only behavior is tested.
+- [x] `AETHER_SCOUT_REQUESTS_PER_MINUTE` is enforced for HTTP, robots/sitemap, and MCP indicator requests.
+- [x] `AETHER_SCOUT_MAX_CONCURRENT_PROBES` is bounded and respected by active probes.
+- [x] Passive discovery remains enabled by default unless explicitly disabled by config.
 
 **Verification:**
-- [ ] Tests pass: `python -m unittest tests.test_config`
+- [x] Tests pass: `python -m unittest tests.test_config`
 - [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Task 6
@@ -285,10 +285,10 @@ Scope model and validation
 - [x] `.env.example` includes spec env vars with safe placeholder values.
 - [x] Docker service/image/package names use Aether-Scout naming.
 - [x] No new Zero-Flow naming exists outside migration note.
-- [ ] README documents `--audit-log`, accepted-only `--out`, CIDR validation-only behavior, passive-default behavior, throttling, and batched Link submission.
+- [x] README documents `--audit-log`, accepted-only `--out`, CIDR validation-only behavior, passive-default behavior, throttling, and batched Link submission.
 
 **Verification:**
-- [ ] Search passes: `rg "Zero-Flow|zero-flow|ZERO_FLOW" .`
+- [x] Search passes: `rg "Zero-Flow|zero-flow|ZERO_FLOW" .`
 - [x] Full suite passes: `python -m unittest discover -s tests`
 
 **Dependencies:** Tasks 6, 9
@@ -327,9 +327,9 @@ Scope model and validation
 
 ### Checkpoint: Complete
 - [x] All tests pass: `python -m unittest discover -s tests`.
-- [ ] CLI local-scope flow works.
-- [ ] Mock Aether-Link flow works.
-- [ ] Docs match behavior.
+- [x] CLI local-scope flow works.
+- [x] Mock Aether-Link flow works.
+- [x] Docs match behavior.
 - [x] Safety boundaries reviewed.
 - [ ] Human reviewed and approved plan before implementation.
 

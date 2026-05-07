@@ -7,7 +7,7 @@ import sys
 
 from . import __version__
 from .config import settings_from_env
-from .discovery import discover_assets
+from .discovery import discover_assets_with_audit
 from .link_client import LinkClient
 from .scope_loader import load_scope_file, scope_from_link_current
 
@@ -21,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--scope", help="Local scope.toml path.")
     run.add_argument("--link-url", help="Aether-Link base URL.")
     run.add_argument("--out", help="JSONL output path.")
+    run.add_argument("--audit-log", help="JSONL path for rejected candidates.")
     run.add_argument("--passive-only", action="store_true")
 
     validate = sub.add_parser("validate-scope")
@@ -43,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"valid program_id={scope.program_id} include_rules={len(scope.include_rules())}")
             return 0
         if args.command == "push-assets":
-            client = LinkClient(args.link_url, settings.api_token, timeout=settings.timeout_seconds)
+            client = LinkClient(args.link_url, settings.api_token, timeout=settings.timeout_seconds, batch_size=settings.link_batch_size)
             assets = _read_jsonl(args.assets)
             responses = client.post_assets(assets)
             print(f"posted={len(responses)} link_url={args.link_url}")
@@ -63,24 +64,26 @@ def _run(args: argparse.Namespace, settings) -> int:
     if args.scope or settings.scope_file:
         scope = load_scope_file(args.scope or settings.scope_file)
     elif link_url:
-        client = LinkClient(link_url, settings.api_token, timeout=settings.timeout_seconds)
+        client = LinkClient(link_url, settings.api_token, timeout=settings.timeout_seconds, batch_size=settings.link_batch_size)
         client.health()
         scope = scope_from_link_current(client.current_config())
         scope.validate_for_run()
     else:
         raise ValueError("scope or link-url required")
 
-    assets, logs = discover_assets(scope, settings)
+    assets, logs, rejected = discover_assets_with_audit(scope, settings)
     _write_jsonl(out_path, [asset.to_dict() for asset in assets])
+    if args.audit_log:
+        _write_jsonl(Path(args.audit_log), [record.to_dict() for record in rejected])
 
     posted = 0
     if link_url:
-        client = LinkClient(link_url, settings.api_token, timeout=settings.timeout_seconds)
+        client = LinkClient(link_url, settings.api_token, timeout=settings.timeout_seconds, batch_size=settings.link_batch_size)
         client.post_assets([asset.to_dict() for asset in assets])
         posted = len(assets)
     for line in logs:
         print(f"log={line}", file=sys.stderr)
-    print(f"program_id={scope.program_id} assets={len(assets)} out={out_path} posted={posted}")
+    print(f"program_id={scope.program_id} assets={len(assets)} rejected={len(rejected)} out={out_path} posted={posted}")
     return 0
 
 

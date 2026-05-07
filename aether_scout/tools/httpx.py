@@ -5,7 +5,14 @@ from urllib.parse import urlparse
 from .common import iter_json_lines, parse_urls, run_cmd, tool_available
 
 
-def probe(hosts: list[str], *, httpx_path: str = "httpx", timeout: int = 10, rate_limiter=None) -> tuple[list[dict], list[str]]:
+def probe(
+    hosts: list[str],
+    *,
+    httpx_path: str = "httpx",
+    timeout: int = 10,
+    rate_limiter=None,
+    max_concurrent_probes: int = 5,
+) -> tuple[list[dict], list[str]]:
     logs: list[str] = []
     if not hosts:
         return [], logs
@@ -23,6 +30,8 @@ def probe(hosts: list[str], *, httpx_path: str = "httpx", timeout: int = 10, rat
         "-server",
         "-content-type",
         "-follow-redirects",
+        "-threads",
+        str(max(1, max_concurrent_probes)),
     ]
     result = run_cmd(cmd, input_text="\n".join(hosts) + "\n", timeout=timeout)
     logs.append(f"httpx exit={result.exit_code}")

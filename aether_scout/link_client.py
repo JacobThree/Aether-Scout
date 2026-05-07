@@ -6,10 +6,13 @@ import json
 
 
 class LinkClient:
-    def __init__(self, base_url: str, api_token: str | None = None, timeout: int = 10) -> None:
+    def __init__(self, base_url: str, api_token: str | None = None, timeout: int = 10, batch_size: int = 50) -> None:
+        if batch_size < 1 or batch_size > 100:
+            raise ValueError("batch_size must be between 1 and 100")
         self.base_url = base_url.rstrip("/")
         self.api_token = api_token
         self.timeout = timeout
+        self.batch_size = batch_size
 
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/health")
@@ -21,7 +24,10 @@ class LinkClient:
         return self._request("POST", "/assets", asset)
 
     def post_assets(self, assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [self.post_asset(asset) for asset in assets]
+        responses: list[dict[str, Any]] = []
+        for chunk in _chunks(assets, self.batch_size):
+            responses.append(self._request("POST", "/assets", {"assets": chunk}))
+        return responses
 
     def _request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         body = None if payload is None else json.dumps(payload, sort_keys=True).encode("utf-8")
@@ -38,3 +44,7 @@ class LinkClient:
         except error.HTTPError as exc:
             raw = exc.read().decode("utf-8")
             raise RuntimeError(f"aether-link {method} {path} failed: {exc.code} {raw}") from exc
+
+
+def _chunks(rows: list[dict[str, Any]], size: int) -> list[list[dict[str, Any]]]:
+    return [rows[index:index + size] for index in range(0, len(rows), size)]

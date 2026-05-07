@@ -3,6 +3,7 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from .asset_builder import from_http_row, host_asset
+from .audit import RejectedCandidate, rejected_candidate
 from .config import ScoutSettings
 from .dedupe import dedupe_assets
 from .models.asset import Asset
@@ -12,14 +13,20 @@ from .tools import dnsx, httpx, mcp_detector, robots, subfinder
 
 
 def discover_assets(scope: ScopeConfig, settings: ScoutSettings) -> tuple[list[Asset], list[str]]:
+    assets, logs, _rejected = discover_assets_with_audit(scope, settings)
+    return assets, logs
+
+
+def discover_assets_with_audit(scope: ScopeConfig, settings: ScoutSettings) -> tuple[list[Asset], list[str], list[RejectedCandidate]]:
     scope.validate_for_run()
     logs: list[str] = []
+    rejected: list[RejectedCandidate] = []
     root_domains = scope.root_domains()
     candidate_hosts = list(root_domains)
 
     if settings.passive_only:
         assets = [host_asset(scope.program_id, host, ["scope_seed"]) for host in _allowed_hosts(candidate_hosts, scope)]
-        return dedupe_assets(assets), ["passive_only=true; skipped DNS, HTTP, robots, sitemap, and MCP probes"]
+        return dedupe_assets(assets), ["passive_only=true; skipped DNS, HTTP, robots, sitemap, and MCP probes"], rejected
 
     if not settings.passive_only:
         discovered, sub_logs = subfinder.discover(root_domains, subfinder_path=settings.subfinder_path, timeout=settings.timeout_seconds)
@@ -36,6 +43,7 @@ def discover_assets(scope: ScopeConfig, settings: ScoutSettings) -> tuple[list[A
         allowed_ips = [ip for ip in ips if scope.is_resolved_ip_allowed(ip)]
         if ips and not allowed_ips:
             logs.append(f"rejected host={host} reason=resolved_ip_out_of_scope")
+            rejected.append(rejected_candidate(host, "dnsx", "resolved_ip_out_of_scope", scope_context={"program_id": scope.program_id}, metadata={"ips": ips}))
             continue
         assets.append(host_asset(scope.program_id, host, ["scope_seed" if host in root_domains else "subfinder", "dnsx"], ip=allowed_ips[0] if allowed_ips else None))
 
@@ -45,15 +53,18 @@ def discover_assets(scope: ScopeConfig, settings: ScoutSettings) -> tuple[list[A
         httpx_path=settings.httpx_path,
         timeout=settings.timeout_seconds,
         rate_limiter=rate_limiter,
+        max_concurrent_probes=settings.max_concurrent_probes,
     )
     logs.extend(http_logs)
     for row in http_rows:
         url = str(row.get("url") or "")
         host = row.get("host") or urlparse(url).hostname
         if not host or not scope.is_url_allowed(url):
+            rejected.append(rejected_candidate(url or str(host or ""), "httpx", "url_out_of_scope", scope_context={"program_id": scope.program_id}))
             continue
         if not scope.is_resolved_ip_allowed(dns_results.get(host, {}).get("ips", [None])[0]):
             logs.append(f"rejected url={url} reason=resolved_ip_out_of_scope")
+            rejected.append(rejected_candidate(url, "httpx", "resolved_ip_out_of_scope", scope_context={"program_id": scope.program_id}, metadata={"host": host}))
             continue
         asset = from_http_row(scope.program_id, row, ["httpx"])
         paths = robots.discover(url, user_agent=settings.user_agent, timeout=settings.timeout_seconds, rate_limiter=rate_limiter)
@@ -69,7 +80,7 @@ def discover_assets(scope: ScopeConfig, settings: ScoutSettings) -> tuple[list[A
             asset.confidence = max(asset.confidence, 0.82)
         assets.append(asset)
 
-    return dedupe_assets(assets), logs
+    return dedupe_assets(assets), logs, rejected
 
 
 def _allowed_hosts(hosts: list[str], scope: ScopeConfig) -> list[str]:
