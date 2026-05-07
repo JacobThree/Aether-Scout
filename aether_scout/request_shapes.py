@@ -57,8 +57,8 @@ def redact_secrets(value: Any) -> Any:
 def _schema_from_record(program_id: str, raw: dict[str, Any], url: str) -> SchemaCandidate:
     request_data = raw.get("request") if isinstance(raw.get("request"), dict) else raw
     response_data = raw.get("response") if isinstance(raw.get("response"), dict) else {}
-    request_paths = _key_paths({"request": request_data})
-    response_paths = _key_paths({"response": response_data})
+    request_paths = _key_paths(request_data, "request")
+    response_paths = _key_paths(response_data, "response")
     upload_endpoint = _upload_endpoint(raw)
     ambiguity: list[str] = []
     prompt_key = _first_path(request_paths, PROMPT_KEYS)
