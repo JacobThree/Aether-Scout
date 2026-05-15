@@ -23,6 +23,7 @@ class AdapterTests(unittest.TestCase):
             path = Path(tmp) / "httpx.jsonl"
             path.write_text(
                 json.dumps({"url": "https://app.example.com", "status_code": 200}) + "\n" +
+                json.dumps({"url": "https://app.example.com", "status_code": 200}) + "\n" +
                 json.dumps({"url": "https://evil.test", "status_code": 200}) + "\n" +
                 "not-json\n",
                 encoding="utf-8",
@@ -40,22 +41,22 @@ class AdapterTests(unittest.TestCase):
             path = Path(tmp) / "openapi.json"
             path.write_text(json.dumps({
                 "servers": [{"url": "https://api.example.com"}],
-                "paths": {"/api/chat": {"post": {"tags": ["ai"]}}},
+                "paths": {"/api/chat": {"parameters": [], "post": {"tags": ["ai"]}, "get": {"tags": ["ai"]}}},
             }), encoding="utf-8")
 
             output_type, rows, rejected = import_with_adapter("openapi", path, self.scope())
 
         self.assertEqual(output_type, "surfaces")
         self.assertEqual(rejected, [])
-        self.assertEqual(rows[0]["surface_type"], "openapi_schema")
-        self.assertEqual(rows[0]["method"], "POST")
+        self.assertEqual({row["surface_type"] for row in rows}, {"openapi_schema"})
+        self.assertEqual({row["method"] for row in rows}, {"GET", "POST"})
 
     def test_cli_adapter_import_writes_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
             input_path = Path(tmp) / "urls.txt"
             out = Path(tmp) / "assets.jsonl"
             audit = Path(tmp) / "audit.jsonl"
-            input_path.write_text("https://app.example.com\nhttps://evil.test\n", encoding="utf-8")
+            input_path.write_text("https://app.example.com\nhttps://app.example.com\nhttps://evil.test\n", encoding="utf-8")
 
             code = main(["adapters", "import", "--adapter", "url-list", "--input", str(input_path), "--scope", "./examples/scope.toml", "--out", str(out), "--audit-log", str(audit)])
 

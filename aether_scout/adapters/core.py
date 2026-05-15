@@ -13,6 +13,8 @@ from ..models.scope import ScopeConfig
 from ..models.surface import Surface
 from ..surface_mapper import _asset_id, _stable_id
 
+HTTP_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE"}
+
 
 @dataclass(frozen=True, slots=True)
 class Adapter:
@@ -53,7 +55,7 @@ def _httpx_jsonl(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]], 
             rejected.append(_reject(url or str(row), "httpx", "url_out_of_scope", "asset"))
             continue
         assets.append(from_http_row(scope.program_id, row | {"url": url}, ["adapter:httpx"]))
-    return [asset.to_dict() for asset in assets], rejected
+    return _dedupe_rows([asset.to_dict() for asset in assets]), rejected
 
 
 def _subfinder_text(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]], list[RejectedCandidate]]:
@@ -69,22 +71,11 @@ def _subfinder_text(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]
             rejected.append(_reject(host, "subfinder", "host_out_of_scope", "asset"))
             continue
         assets.append(host_asset(scope.program_id, host, ["adapter:subfinder"]))
-    return [asset.to_dict() for asset in assets], rejected
+    return _dedupe_rows([asset.to_dict() for asset in assets]), rejected
 
 
 def _url_list(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]], list[RejectedCandidate]]:
-    assets: list[Asset] = []
-    rejected: list[RejectedCandidate] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        url = line.strip()
-        if not url:
-            continue
-        if not scope.is_url_allowed(url):
-            rejected.append(_reject(url, "url_list", "url_out_of_scope", "asset"))
-            continue
-        parsed = urlparse(url)
-        assets.append(Asset(program_id=scope.program_id, url=url, host=parsed.hostname, scheme=parsed.scheme, port=parsed.port, discovery_methods=["adapter:url-list"], confidence=0.55))
-    return [asset.to_dict() for asset in assets], rejected
+    return _urls_to_assets(path.read_text(encoding="utf-8").splitlines(), scope, "url-list")
 
 
 def _openapi_json(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]], list[RejectedCandidate]]:
@@ -102,20 +93,20 @@ def _openapi_json(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]],
             if not scope.is_url_allowed(url):
                 rejected.append(_reject(url, "openapi", "url_out_of_scope", "surface"))
                 continue
-            method = next(iter(methods.keys()), "GET").upper() if isinstance(methods, dict) and methods else "GET"
             asset = Asset(program_id=scope.program_id, url=base_url, host=urlparse(base_url).hostname)
-            rows.append(Surface(
-                surface_id=_stable_id("surface", scope.program_id, url, "openapi_schema"),
-                program_id=scope.program_id,
-                asset_id=_asset_id(asset),
-                surface_type="openapi_schema",
-                url=url,
-                method=method,
-                confidence=0.82,
-                indicators=["openapi"],
-                evidence_metadata={"source": "adapter:openapi"},
-            ).to_dict())
-    return rows, rejected
+            for method in _openapi_methods(methods):
+                rows.append(Surface(
+                    surface_id=_stable_id("surface", scope.program_id, url, "openapi_schema", method),
+                    program_id=scope.program_id,
+                    asset_id=_asset_id(asset),
+                    surface_type="openapi_schema",
+                    url=url,
+                    method=method,
+                    confidence=0.82,
+                    indicators=["openapi"],
+                    evidence_metadata={"source": "adapter:openapi"},
+                ).to_dict())
+    return _dedupe_rows(rows), rejected
 
 
 def _har_json(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]], list[RejectedCandidate]]:
@@ -158,7 +149,29 @@ def _urls_to_assets(urls: list[str], scope: ScopeConfig, source: str) -> tuple[l
             continue
         parsed = urlparse(url)
         assets.append(Asset(program_id=scope.program_id, url=url, host=parsed.hostname, scheme=parsed.scheme, port=parsed.port, discovery_methods=[f"adapter:{source}"], confidence=0.55).to_dict())
-    return assets, rejected
+    return _dedupe_rows(assets), rejected
+
+
+def _openapi_methods(methods: Any) -> list[str]:
+    if not isinstance(methods, dict):
+        return ["GET"]
+    out = [str(method).upper() for method in methods if str(method).upper() in HTTP_METHODS]
+    return out or ["GET"]
+
+
+def _dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for row in rows:
+        key = (
+            row.get("url"),
+            row.get("host"),
+            row.get("surface_id") or row.get("schema_id"),
+            row.get("method"),
+        )
+        current = out.get(key)
+        if current is None or float(row.get("confidence", 0)) > float(current.get("confidence", 0)):
+            out[key] = row
+    return list(out.values())
 
 
 def _reject(candidate: str, source: str, reason: str, candidate_type: str) -> RejectedCandidate:
