@@ -121,17 +121,12 @@ def _openapi_json(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]],
 def _har_json(path: Path, scope: ScopeConfig) -> tuple[list[dict[str, Any]], list[RejectedCandidate]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     entries = data.get("log", {}).get("entries", []) if isinstance(data, dict) else []
-    temp = path.with_suffix(".urls")
     urls = []
     for entry in entries if isinstance(entries, list) else []:
         request_data = entry.get("request") if isinstance(entry, dict) else {}
         if isinstance(request_data, dict) and request_data.get("url"):
             urls.append(str(request_data["url"]))
-    temp.write_text("\n".join(urls), encoding="utf-8")
-    try:
-        return _url_list(temp, scope)
-    finally:
-        temp.unlink(missing_ok=True)
+    return _urls_to_assets(urls, scope, "har")
 
 
 def _read_jsonl(path: Path, rejected: list[RejectedCandidate], source: str) -> list[dict[str, Any]]:
@@ -149,6 +144,21 @@ def _read_jsonl(path: Path, rejected: list[RejectedCandidate], source: str) -> l
         else:
             rejected.append(_reject(str(row), source, "malformed_record", "asset"))
     return rows
+
+
+def _urls_to_assets(urls: list[str], scope: ScopeConfig, source: str) -> tuple[list[dict[str, Any]], list[RejectedCandidate]]:
+    assets: list[Asset] = []
+    rejected: list[RejectedCandidate] = []
+    for raw_url in urls:
+        url = raw_url.strip()
+        if not url:
+            continue
+        if not scope.is_url_allowed(url):
+            rejected.append(_reject(url, source, "url_out_of_scope", "asset"))
+            continue
+        parsed = urlparse(url)
+        assets.append(Asset(program_id=scope.program_id, url=url, host=parsed.hostname, scheme=parsed.scheme, port=parsed.port, discovery_methods=[f"adapter:{source}"], confidence=0.55).to_dict())
+    return assets, rejected
 
 
 def _reject(candidate: str, source: str, reason: str, candidate_type: str) -> RejectedCandidate:

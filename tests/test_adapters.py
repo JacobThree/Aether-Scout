@@ -66,6 +66,26 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rejected[0]["candidate_type"], "asset")
 
+    def test_har_import_does_not_touch_sibling_urls_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "capture.har"
+            sibling = Path(tmp) / "capture.urls"
+            sibling.write_text("keep me", encoding="utf-8")
+            path.write_text(json.dumps({
+                "log": {"entries": [
+                    {"request": {"url": "https://app.example.com/api/chat"}},
+                    {"request": {"url": "https://evil.test/api/chat"}},
+                ]}
+            }), encoding="utf-8")
+
+            output_type, rows, rejected = import_with_adapter("har", path, self.scope())
+            sibling_text = sibling.read_text(encoding="utf-8")
+
+        self.assertEqual(output_type, "assets")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rejected[0].reason, "url_out_of_scope")
+        self.assertEqual(sibling_text, "keep me")
+
 
 if __name__ == "__main__":
     unittest.main()
