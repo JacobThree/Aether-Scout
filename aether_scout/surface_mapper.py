@@ -102,7 +102,7 @@ def _active_indicator_candidates(base_url: str, settings: ScoutSettings, rate_li
     for path in AI_INDICATOR_PATHS:
         url = urljoin(base_url.rstrip("/") + "/", path.lstrip("/"))
         status, content_type = _head_or_get(url, user_agent=settings.user_agent, timeout=settings.timeout_seconds, rate_limiter=rate_limiter)
-        if status and status < 500 and status != 404:
+        if status and status < 500 and status not in {404, 405}:
             candidates.append({
                 "url": url,
                 "indicators": [path],
@@ -132,7 +132,7 @@ def _accept_or_reject(
         return
     indicators = [str(item) for item in candidate.get("indicators", []) if str(item)]
     surface_type = _surface_type_for_text(" ".join([url, *indicators]))
-    if surface_type == "unknown_ai_surface" and not indicators:
+    if surface_type == "unknown_ai_surface":
         return
     surfaces.append(Surface(
         surface_id=_stable_id("surface", scope.program_id, url, surface_type),
@@ -155,6 +155,8 @@ def _head_or_get(url: str, *, user_agent: str, timeout: int, rate_limiter: RateL
             with request.urlopen(req, timeout=timeout) as resp:
                 return int(resp.status), resp.headers.get("content-type")
         except error.HTTPError as exc:
+            if exc.code == 405 and method == "HEAD":
+                continue
             if exc.code in {401, 403, 404, 405}:
                 return int(exc.code), exc.headers.get("content-type")
         except (OSError, error.URLError):

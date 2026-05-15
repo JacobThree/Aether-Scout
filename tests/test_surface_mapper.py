@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from aether_scout.cli import main
 from aether_scout.config import ScoutSettings
@@ -50,6 +51,20 @@ class SurfaceMapperTests(unittest.TestCase):
         self.assertEqual(rejected[0].candidate_type, "surface")
         self.assertEqual(rejected[0].reason, "url_out_of_scope")
 
+    def test_non_ai_paths_do_not_create_unknown_surfaces(self):
+        asset = Asset(
+            program_id="p1",
+            url="https://app.example.com",
+            host="app.example.com",
+            interesting_paths=["/admin", "/login"],
+        )
+        settings = ScoutSettings(passive_only=True)
+
+        surfaces, rejected = map_surfaces_from_assets(self.scope(), [asset], settings)
+
+        self.assertEqual(surfaces, [])
+        self.assertEqual(rejected, [])
+
     @patch("aether_scout.surface_mapper._head_or_get")
     def test_active_indicator_paths_are_checked(self, head_or_get):
         head_or_get.side_effect = lambda url, **_kwargs: (200, "application/json") if url.endswith("/api/chat") else (404, None)
@@ -61,6 +76,36 @@ class SurfaceMapperTests(unittest.TestCase):
         self.assertEqual(rejected, [])
         self.assertEqual([surface.url for surface in surfaces], ["https://app.example.com/api/chat"])
         self.assertGreaterEqual(head_or_get.call_count, 12)
+
+    @patch("aether_scout.surface_mapper.request.urlopen")
+    def test_head_405_falls_back_to_get(self, urlopen):
+        from aether_scout.surface_mapper import _head_or_get
+        from aether_scout.throttle import NullRateLimiter
+
+        class Response:
+            status = 200
+            headers = {"content-type": "application/json"}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        head_error = HTTPError("https://app.example.com/api/chat", 405, "method", {}, None)
+        head_error.read = lambda: b""
+        urlopen.side_effect = [head_error, Response()]
+
+        status, content_type = _head_or_get(
+            "https://app.example.com/api/chat",
+            user_agent="test",
+            timeout=1,
+            rate_limiter=NullRateLimiter(),
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(content_type, "application/json")
+        self.assertEqual([call.args[0].method for call in urlopen.call_args_list], ["HEAD", "GET"])
 
     @patch("aether_scout.cli.map_surfaces")
     def test_cli_writes_surface_jsonl_and_audit(self, map_surfaces):
